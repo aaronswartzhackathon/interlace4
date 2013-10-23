@@ -1,0 +1,32 @@
+Interlace Teleputer Systems For Home, Office, Or Mobile
+
+== Installation
+
+Requires CouchDB 1.4 or greater.
+
+http://couchdb.apache.org/ has binaries for Mac and Windows.
+
+For Linux, if your package manager doesn't have a sufficiently recent version of Couch,
+https://github.com/iriscouch/build-couchdb can help you build one from source.
+
+
+
+git clone git://git.numm.org/interlace4
+cd interlace4
+
+On Mac, place "Apache CouchDB.app" in the interlace4 root directory;
+on other platforms, create a symbolic link named "couchdb" to the "build" directory:
+
+ln -s /PATH/TO/build-couchdb/build/ couchdb
+(There may be permissions issues on a system-wide installation)
+
+git submodule init
+git submodule update
+
+
+
+== Running InterLace
+
+Once InterLace is installed, simply run:
+
+python interlace.py
