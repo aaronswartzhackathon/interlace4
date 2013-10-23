@@ -1,4 +1,5 @@
 from freud import psychotherapist
+import ingest
 
 import os
 import sys
@@ -17,20 +18,30 @@ else:
     basedir = os.path.abspath(os.path.dirname(__file__))
     exepath = '"%s" "%s"' % (sys.executable, os.path.abspath(__file__))
 
+ingest.BASEDIR = basedir
+
 class InterLace(psychotherapist.CouchTherapy):
-    pass
+    def doc_updated_type_uploaded_video(self, db, doc):
+        if "upload" in doc.get("_attachments", {}):
+            psychotherapist.log("upload processing started!")
+
+            doc["type"] = "processing-video"
+            db.save(doc)
+            ingest.encode_from_upload(db, doc)
 
 if __name__=='__main__':
     if len(sys.argv) == 1:
         # Subprocess CouchDB and make a GUI
         from PyQt4 import QtGui
-        from freud import gui
+
+        import intergui
 
         app = QtGui.QApplication(sys.argv)
         app.setApplicationName(APPNAME)
         p = psychotherapist.init(basedir, exepath, name=APPNAME, port=PORT)
         creds = psychotherapist.get_psychotherapist_creds(os.path.join(os.getenv("HOME"), ".freud", APPNAME, "conf"))
-        main = gui.get_main_window(creds, port=PORT)
+        main = intergui.InterLaceGui(creds, port=PORT)
+        main.show()
         app.exec_()
         p.kill()
         p.wait()

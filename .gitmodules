@@ -1,3 +1,6 @@
 [submodule "freud"]
 	path = freud
 	url = git://git.numm.org/freud
+[submodule "lib/streamrip"]
+	path = lib/streamrip
+	url = git://git.numm.org/streamrip

@@ -1,0 +1,78 @@
+<html>
+  <head>
+<title>upload</title>
+<script src="freud.js"></script>
+</head>
+<body>
+<h1>upload</h1>
+<input type="file" id="upload"/>
+<div id="status"></div>
+<script>
+var ego = new SuperEgo();
+ego.track();
+
+var UploadStatus = function(obj, file) {
+    this.$el = document.createElement("div");
+    this.$name = document.createElement("span");
+    this.$name.innerHTML = file.name;
+    this.$progress = document.createElement("progress");
+    this.$progress.setAttribute("min", "0");
+    this.$progress.setAttribute("max", "100");
+    this.$progress.setAttribute("value", "0");
+    this.$txt = document.createElement("span");
+
+    this.$el.appendChild(this.$name);
+    this.$el.appendChild(this.$progress);
+    this.$el.appendChild(this.$txt);
+
+    this.setStatus("UPLOADING");
+    obj.put_file_attachment("upload", file, function(res) {
+        // Upload completed
+        this.setStatus("PROCESSING");
+    }.bind(this), function(progress) {
+        // Progress
+        this.setStatus("UPLOADING: " + (Math.round(progress*100)) + "%");
+        this.$progress.value = progress * 100;
+    }.bind(this));
+}
+UploadStatus.prototype.setStatus = function(text) {
+    this.$txt.innerHTML = text;
+}
+
+var uploads = {};               // _id -> UploadStatus
+
+var videos = new Subcollection(ego, function(x) { return x.type == "video"; });
+var processing = new Subcollection(ego, function(x) { return x.type == "processing-video"; });
+
+var vview = new SuperMarket(videos, function(o,$d) {
+    $d.title = o._id;
+    $d.src = 'db/'+o._id+'/320p.webm';
+}, "video");
+document.body.appendChild(vview.$el);
+
+var pview = new SuperMarket(processing, function(obj, $div) {
+    $div.innerHTML = obj._id + ": " + Object.keys(obj._attachments || {}).length + " attachments";
+});
+document.body.appendChild(pview.$el);
+
+var $upl = document.getElementById("upload");
+var $status = document.getElementById("status");
+$upl.onchange = function(ev) {
+    for(var i=0; i<this.files.length; i++) {
+        var file = this.files[i];
+        // Use file-name for document ID unless that doc already exists
+        var uid = file.name;
+        while(ego.get(uid)) {
+            uid = "-" + uid;
+        }
+        var outgoing = new SuperModel(ego, {"_id": uid, "uploaded-file-name": file.name, "type": "uploaded-video"});
+        outgoing.save(function() {
+            var us = new UploadStatus(this.obj, this.file);
+            uploads[this.obj._id] = us;
+            $status.appendChild(us.$el);
+        }.bind({obj: outgoing, file: file}));
+    }
+};
+</script>
+</body>
+</html>

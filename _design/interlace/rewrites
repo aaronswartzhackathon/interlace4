@@ -1,0 +1,22 @@
+[
+    {
+        "from": "db",
+        "to": "../.."
+    },
+    {
+        "from": "db/*",
+        "to": "../../*"
+    },
+    {
+        "from": "",
+        "to": "upload.html"
+    },
+    {
+        "from": ":var",
+        "to": ":var"
+    },
+    {
+        "from": ":var/*",
+        "to": ":var/*"
+    }
+]

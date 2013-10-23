@@ -20,6 +20,12 @@ on other platforms, create a symbolic link named "couchdb" to the "build" direct
 ln -s /PATH/TO/build-couchdb/build/ couchdb
 (There may be permissions issues on a system-wide installation)
 
+Likewise place ffmpeg (or a symbolic link thereto) in the interlace4 root;
+good x-platform binaries can be found at:
+http://www.firefogg.org/nightly/
+
+
+
 git submodule init
 git submodule update
 
