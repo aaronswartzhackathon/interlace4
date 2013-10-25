@@ -2,6 +2,7 @@ import couchdb
 import os
 import socket
 import subprocess
+import urlparse
 
 import streamrip.webm
 
@@ -118,22 +119,24 @@ def stream_to_couch(chunkgen, db, doc):
     _really_put_attachment(db, doc, acc, filename="320p.webm", content_type="video/webm")
     _really_set_field(db, doc, "type", "video")
 
-def encode_from_upload(db, doc, upload_name="upload"):
-    import tempfile
-    _fd, name = tempfile.mkstemp()
-    # XXX: upload could be large -- stream instead of loading into memory
-    attach_fh = db.get_attachment(doc, upload_name)
-    with open(name, 'w') as write_fh:
-        while True:
-            data = attach_fh.read(2**16)
-            if len(data) == 0:
-                break
-            else:
-                write_fh.write(data)
-            
-    attach_fh.close()
+def encode_from_upload(interlace, db, doc, upload_name="upload"):
+    # import tempfile
+    # _fd, name = tempfile.mkstemp()
+    # # XXX: upload could be large -- stream instead of loading into memory
+    # attach_fh = db.get_attachment(doc, upload_name)
+    # with open(name, 'w') as write_fh:
+    #     while True:
+    #         data = attach_fh.read(2**16)
+    #         if len(data) == 0:
+    #             break
+    #         else:
+    #             write_fh.write(data)
+    # attach_fh.close()
 
-    chunkgen = encode(["-i", name])
+    url = urlparse.urljoin(interlace.server_uri, "%s/%s/%s" % (db.name, doc["_id"], upload_name))
+
+    #chunkgen = encode(["-i", name])
+    chunkgen = encode(["-i", url])
     _p = chunkgen.next()        # process handle
     stream_to_couch(chunkgen, db, doc)
-    os.unlink(name)             # remove the evidence
+    #os.unlink(name)             # remove the evidence

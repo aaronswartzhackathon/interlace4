@@ -45,7 +45,7 @@ class InterLace(psychotherapist.CouchTherapy):
             db.save(doc)
 
             # Call in a thread so that our update calls go through and we can update the stream, &c
-            reactor.callInThread(ingest.encode_from_upload, db, doc)
+            reactor.callInThread(ingest.encode_from_upload, self, db, doc)
             #ingest.encode_from_upload(db, doc)
 
     def doc_updated_type_processing_video(self, db, doc):
@@ -58,7 +58,10 @@ class InterLace(psychotherapist.CouchTherapy):
         psychotherapist.CouchTherapy.db_updated(self, db_name)
 
         if db_name not in self.streams.dbs:
-            reactor.callFromThread(self.streams.add_database, self.server[db_name])
+            if db_name in self.server:
+                reactor.callFromThread(self.streams.add_database, self.server[db_name])
+            else:
+                psychotherapist.log("EEK! -- db not in server?", db_name)
 
 class DatabaseStreams(Resource):
     def __init__(self, db):
@@ -112,7 +115,6 @@ def run_forever(interlace):
         import time
         time.sleep(20)
         sys.exit(1)
-
 
 if __name__=='__main__':
     if len(sys.argv) == 1:
