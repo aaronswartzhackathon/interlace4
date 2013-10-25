@@ -50,8 +50,23 @@ var vview = new SuperMarket(videos, function(o,$d) {
 }, "video");
 document.body.appendChild(vview.$el);
 
+// figure out dbname from URL
+// XXX: somehow this should be otherwise known...
+// XXX: this won't work for subdomains
+var dbname = window.location.pathname.split("/")[1];
+
 var pview = new SuperMarket(processing, function(obj, $div) {
     $div.innerHTML = obj._id + ": " + Object.keys(obj._attachments || {}).length + " attachments";
+    var $w = document.createElement("button");
+    $div.appendChild($w);
+    $w.innerHTML = "stream";
+    $w.onclick = function() {
+        var dur = obj.index[obj.index.length-1];
+        var $v = document.createElement("video");
+        $v.src = "stream/" + dbname + "/" + obj._id + "?duration=" + dur;
+        $v.setAttribute("controls", true);
+        document.body.appendChild($v);
+    }
 });
 document.body.appendChild(pview.$el);
 

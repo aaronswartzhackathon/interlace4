@@ -7,10 +7,11 @@ import sys
 
 from twisted.web.server import Site
 from twisted.web.resource import Resource
-from twisted.internet import reactor
+from twisted.internet import reactor, threads
 
 APPNAME = os.getenv("INTERLACE_APPNAME", "interlace")
 PORT = int(os.getenv("INTERLACE_PORT", "5995"))
+SVC_PORT = int(os.getenv("INTERLACE_SVC_PORT", "5996"))
 
 # Introspect to determine basedir and executable 
 # (no clear way to refactor these checks out)
@@ -24,6 +25,12 @@ else:
     exepath = '"%s" "%s"' % (sys.executable, os.path.abspath(__file__))
 
 ingest.BASEDIR = basedir
+
+def interlace_init(creds):
+    # additionally, register twisted service
+    psychotherapist.setconfig("http://localhost:%d" % (PORT), creds,
+                              "httpd_global_handlers", "_stream", 
+                              '{couch_httpd_proxy, handle_proxy_req, <<"http://localhost:%d">>}' % (SVC_PORT))
 
 class InterLace(psychotherapist.CouchTherapy):
     def __init__(self, streams):
@@ -43,7 +50,9 @@ class InterLace(psychotherapist.CouchTherapy):
 
     def doc_updated_type_processing_video(self, db, doc):
         if "cluster-0" in doc.get("_attachments", {}):
-            reactor.callFromThread(self.streams.dbs[db.name].update_stream, doc)
+            # Only refresh when the index *and* nclusters match in size
+            if self.streams.dbs.get(db.name, None) and len(doc.get("index", [])) == len(filter(lambda x: x.startswith("cluster-"), doc["_attachments"].keys())):
+                reactor.callFromThread(self.streams.dbs[db.name].update_stream, doc)
 
     def db_updated(self, db_name):
         psychotherapist.CouchTherapy.db_updated(self, db_name)
@@ -116,6 +125,7 @@ if __name__=='__main__':
         app.setApplicationName(APPNAME)
         p = psychotherapist.init(basedir, exepath, name=APPNAME, port=PORT)
         creds = psychotherapist.get_psychotherapist_creds(os.path.join(os.getenv("HOME"), ".freud", APPNAME, "conf"))
+        interlace_init((creds.split(":")[0], creds.split(":")[1][:-1]))
         main = intergui.InterLaceGui(creds, port=PORT)
         main.show()
         app.exec_()
@@ -126,10 +136,14 @@ if __name__=='__main__':
 
         root = AllOfTheStreams()
         site = Site(root)
-        reactor.listenTCP(5996, site)#, interface='0.0.0.0')
+        reactor.listenTCP(SVC_PORT, site)#, interface='0.0.0.0')
 
         interlace = InterLace(root)
-        reactor.callInThread(run_forever, interlace)
+
+        cmds = [(run_forever, [interlace], {}),
+                (reactor.stop, [], {})] # will stop twisted service if run_forever fails
+                #(reactor.callFromThread, [reactor.stop], {})]
+        threads.callMultipleInThread(cmds)
 
         reactor.run()
 
