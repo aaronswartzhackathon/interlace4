@@ -1,4 +1,6 @@
 import couchdb
+import os
+import socket
 import subprocess
 
 import streamrip.webm
@@ -76,6 +78,10 @@ def _really_put_attachment(db, doc, *a, **kw):
     except couchdb.ResourceConflict:
         doc = db[doc["_id"]]
         return _really_put_attachment(db, doc, *a, **kw)
+    except socket.error:
+        log("SOCKET ERRRRRR")
+        doc = db[doc["_id"]]
+        _really_put_attachment(db, doc, *a, **kw)
 
 def _really_set_field(db, doc, key, value):
     "returns (_id, _rev) if field was set through our doing, (_id, None) otherwise"
@@ -93,27 +99,41 @@ def stream_to_couch(chunkgen, db, doc):
     index = []
     acc = ""
     for idx, cluster in enumerate(clusters(chunkgen)):
-        _really_put_attachment(db, doc, cluster.data, filename="cluster-%d" % (idx), content_type="application/octet-stream")
 
         if cluster.timestamp is None:
             cluster.timestamp = -1e9 # -1secs
 
+        # Update the index first, so that if a cluster exists in the attachment, it is reflected in the index.
+        # These two inserts should properly be atomic...
         index.append(float(cluster.timestamp) / 1e9) # -> seconds
-        acc += cluster.data
         (new_id, new_rev) = _really_set_field(db, doc, "index", index)
         if new_rev is not None:
             doc["_rev"] = new_rev
+        _really_put_attachment(db, doc, cluster.data, filename="cluster-%d" % (idx), content_type="application/octet-stream")
+
+        acc += cluster.data
 
     # Post complete webm
-    # XXX: Remove this once streamrip endpoint is deemed solid
-    _really_put_attachment(db, doc, acc, filename="320p.webm", content_type="application/webm")
+    # XXX: Remove this once streamrip endpoint is deemed solid?
+    _really_put_attachment(db, doc, acc, filename="320p.webm", content_type="video/webm")
     _really_set_field(db, doc, "type", "video")
 
 def encode_from_upload(db, doc, upload_name="upload"):
     import tempfile
     _fd, name = tempfile.mkstemp()
     # XXX: upload could be large -- stream instead of loading into memory
-    open(name, 'w').write(db.get_attachment(doc, upload_name).read())
+    attach_fh = db.get_attachment(doc, upload_name)
+    with open(name, 'w') as write_fh:
+        while True:
+            data = attach_fh.read(2**16)
+            if len(data) == 0:
+                break
+            else:
+                write_fh.write(data)
+            
+    attach_fh.close()
+
     chunkgen = encode(["-i", name])
     _p = chunkgen.next()        # process handle
     stream_to_couch(chunkgen, db, doc)
+    os.unlink(name)             # remove the evidence

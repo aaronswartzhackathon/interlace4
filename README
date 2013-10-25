@@ -36,3 +36,9 @@ git submodule update
 Once InterLace is installed, simply run:
 
 python interlace.py
+
+
+
+== Status
+
+This iteration is highly experimental and incomplete
