@@ -24,7 +24,7 @@ else:
     basedir = os.path.abspath(os.path.dirname(__file__))
     exepath = '"%s" "%s"' % (sys.executable, os.path.abspath(__file__))
 
-ingest.BASEDIR = basedir
+ingest.set_basedir(basedir)
 
 def interlace_init(creds):
     # additionally, register twisted service

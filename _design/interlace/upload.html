@@ -76,12 +76,7 @@ var $status = document.getElementById("status");
 $upl.onchange = function(ev) {
     for(var i=0; i<this.files.length; i++) {
         var file = this.files[i];
-        // Use file-name for document ID unless that doc already exists
-        var uid = file.name;
-        while(ego.get(uid)) {
-            uid = "-" + uid;
-        }
-        var outgoing = new SuperModel(ego, {"_id": uid, "uploaded-file-name": file.name, "type": "uploaded-video"});
+        var outgoing = new SuperModel(ego, {"uploaded-file-name": file.name, "type": "uploaded-video"});
         outgoing.save(function() {
             var us = new UploadStatus(this.obj, this.file);
             uploads[this.obj._id] = us;
