@@ -44,16 +44,18 @@ var uploads = {};               // _id -> UploadStatus
 var videos = new Subcollection(ego, function(x) { return x.type == "video"; });
 var processing = new Subcollection(ego, function(x) { return x.type == "processing-video"; });
 
-var vview = new SuperMarket(videos, function(o,$d) {
-    $d.title = o._id;
-    $d.src = 'db/'+o._id+'/320p.webm';
-}, "video");
-document.body.appendChild(vview.$el);
-
 // figure out dbname from URL
 // XXX: somehow this should be otherwise known...
 // XXX: this won't work for subdomains
 var dbname = window.location.pathname.split("/")[1];
+
+
+var vview = new SuperMarket(videos, function(obj,$d) {
+    $d.title = obj._id;
+    $d.src = "stream/" + dbname + "/" + obj._id + "?cluster_idx=" + (obj.index.length-2);
+}, "video");
+document.body.appendChild(vview.$el);
+
 
 var pview = new SuperMarket(processing, function(obj, $div) {
     $div.innerHTML = obj._id + ": " + Object.keys(obj._attachments || {}).length + " attachments";
@@ -61,9 +63,8 @@ var pview = new SuperMarket(processing, function(obj, $div) {
     $div.appendChild($w);
     $w.innerHTML = "stream";
     $w.onclick = function() {
-        var dur = obj.index[obj.index.length-1];
         var $v = document.createElement("video");
-        $v.src = "stream/" + dbname + "/" + obj._id + "?duration=" + dur;
+        $v.src = "stream/" + dbname + "/" + obj._id + "?cluster_idx=" + (obj.index.length-2);
         $v.setAttribute("controls", true);
         document.body.appendChild($v);
     }

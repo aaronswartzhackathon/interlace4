@@ -150,22 +150,27 @@ class CouchWebMResource(streamrip.webm.DynamicWebMResource):
         req.setHeader('accept-ranges', 'bytes')
         req.setHeader('access-control-allow-origin', '*')
 
+        # Take in the idx of the last cluster we wish to consider so
+        # that we can serve a coherent file even if we receive
+        # multiple requests.
+        cluster_idx = req.args.get("cluster_idx", [None])[0]
+        if cluster_idx is not None:
+            cluster_idx = int(cluster_idx)
+
         duration = req.args.get("duration", [None])[0]
         if duration is not None:
             duration = float(duration)
 
-        cluster_idx, clusters_len = self.webm.find_cluster(duration)
-        if duration is None:
-            if len(self.webm.clusters) != self.version:
-                self.header = self.webm.get_header()
-                self.version = len(self.webm.clusters)
-            header = self.header
+        if cluster_idx is None:
+            cluster_idx, clusters_len = self.webm.find_cluster(duration)
         else:
-            header = self.webm.get_header(cluster_idx)
+            clusters_len = self.webm.clusters[cluster_idx][2]
+
+        header = self.webm.get_header(cluster_idx)
 
         req.setHeader('etag', '"%d"' % cluster_idx)
         virtual_len = len(header) + clusters_len
-        # req.setHeader('content-length', str(virtual_len))
+        req.setHeader('content-length', str(virtual_len))
         range = req.getHeader('range')
 
         if range is not None:
