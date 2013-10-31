@@ -4,3 +4,6 @@
 [submodule "lib/streamrip"]
 	path = lib/streamrip
 	url = git://git.numm.org/streamrip
+[submodule "inline"]
+	path = inline
+	url = git://git.numm.org/inline

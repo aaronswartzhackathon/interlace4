@@ -1,0 +1,125 @@
+<html>
+  <head>
+<title>timelines</title>
+<script src="freud.js"></script>
+<script src="inline.js"></script>
+<style>
+body {
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<h1>timelines</h1>
+<script>
+
+var PREFS = {
+    "overview": {
+        "row_t": 600,
+        "row_w": 1200,
+        "row_h": 72,
+        "img_w": 50,
+        "nrows": 10
+        },
+    "detail": {
+        "row_t": 60,
+        "row_w": 1200,
+        "row_h": 72,
+        "img_w": 72,
+        "nrows": 10
+        }
+    }
+var ego = new SuperEgo();
+ego.track();
+
+var videos = new Subcollection(ego, function(x) {
+    return x.type == "video";
+});
+
+function v_duration(v) {
+    // XXX: undershooting by one cluster, need to store duration in doc
+    return v.index[v.index.length-1];
+};
+function v_overview(v) {
+    // XXX: there could be multiple overviews...
+    return "db/" + v._id + "/overview-000000.jpg";
+};
+
+var InterLine = function(videos) {
+    this.videos = videos;
+    this.loader = new ImageLoader();
+    Line.call(this, PREFS.overview.row_h);
+}
+InterLine.prototype = new Line;
+InterLine.prototype.time2px = function(t) {
+    return t * (PREFS.overview.row_w / PREFS.overview.row_t);
+};
+InterLine.prototype.px2time = function(x) {
+    return x / (PREFS.overview.row_w / PREFS.overview.row_t);
+};
+InterLine.prototype.getWidth = function() {
+    return this.time2px(this.videos.reduce(function(x,y) { return x + v_duration(y); }, 0));
+};
+InterLine.prototype.time2srctime = function(t) {
+    var cur_t = 0;
+    for(var i=0; i<this.videos.length; i++){
+        var src = this.videos[i];
+        if(cur_t + v_duration(src) > t) {
+            return {src: src,
+                    t: t - cur_t};
+        }
+        cur_t += v_duration(src);
+    }
+};
+InterLine.prototype.render = function($can, px_start) {
+    var ctx = $can.getContext("2d");
+    var w = $can.width;
+
+    var cur_x = px_start;
+
+    ctx.strokeStyle = "black";
+    while(cur_x < (px_start + w)) {
+
+        var srctime = this.time2srctime(this.px2time(cur_x));
+        this.loader.loadImage(v_overview(srctime.src), function($img) {
+
+            // Figure out which rectangle from the mosaic to blit
+            // XXX: assumes timescale of mosaics
+            var mos_offset = this.line.time2px(this.t);
+            var mos_idx = Math.round(mos_offset / PREFS.overview.img_w);
+            var mos_y = PREFS.overview.row_h * Math.floor(mos_idx / (PREFS.overview.row_w / PREFS.overview.img_w));
+            var mos_x = PREFS.overview.img_w * (mos_idx % (PREFS.overview.row_w / PREFS.overview.img_w));
+
+            ctx.drawImage($img,
+                          // sx, sy, sw, sh
+                          mos_x, mos_y, PREFS.overview.img_w, PREFS.overview.row_h,
+                          // dx, dy, dw, dh
+                          this.x, 0, PREFS.overview.img_w, PREFS.overview.row_h);
+
+
+        }.bind({line:this, t: srctime.t, x: cur_x - px_start}));
+        
+        ctx.strokeRect(cur_x-px_start,0,PREFS.overview.img_w,$can.height);
+
+        // this.loader.loadImage(v_overview(
+
+        cur_x += PREFS.overview.img_w;
+    }
+
+    var start_t = this.px2time(px_start);
+
+};
+
+var line, flow;
+ego.onload = function() {
+    line = new InterLine(videos.items());
+    flow = new Flow(line, document.body.clientWidth);
+
+    document.body.appendChild(flow.$el);
+
+    flow.setVisible(0,document.body.clientHeight);
+}
+
+</script>
+</body>
+</html>
