@@ -225,9 +225,9 @@ var VideoFocus = function(flow) {
     this._src = null;           // current source
     this._srcstart = 0;         // where source starts in absolute time
 
-    this.$video.ontimeupdate = function() {
+    this.$video.addEventListener("timeupdate", function() {
         this.setTime(this.$video.currentTime + this._srcstart, true);
-    }.bind(this);
+    }.bind(this), false);
 }
 VideoFocus.prototype = new Focus;
 VideoFocus.prototype.setTime = function(t, soft) {
