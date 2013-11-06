@@ -30,10 +30,13 @@ body {
 </head>
 <body>
 <h1>timelines</h1>
-<a href="upload.html">upload</a>
 <div id="payload"></div>
 <div id="timelines"></div>
 </div>
+<p>
+upload a video:
+<input type="file" id="upload"/>
+<progress id="progress" min=0 max=100 value=0></div>
 <script>
 
 var PREFS = {
@@ -313,6 +316,22 @@ ego.onload = function() {
     streams.bind("create", reset);
     streams.bind("delete", reset);
 }
+
+var $upl = document.getElementById("upload");
+var $progress = document.getElementById("progress");
+$upl.onchange = function(ev) {
+    for(var i=0; i<this.files.length; i++) {
+        var file = this.files[i];
+        var outgoing = new SuperModel(ego, {"uploaded-file-name": file.name, "type": "uploaded-video"});
+        outgoing.save(function() {
+            this.doc.put_file_attachment("upload", this.file, function(res) {
+                console.log("upload completed");
+            }, function(progress) {
+                $progress.value = progress * 100;
+            });
+        }.bind({file: file, doc: outgoing}));
+    }
+};
 
 </script>
 </body>
