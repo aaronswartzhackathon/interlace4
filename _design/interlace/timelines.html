@@ -269,43 +269,46 @@ var streams = new Subcollection(ego, function(x) {
 var $timelines = document.getElementById("timelines");
 var $payload = document.getElementById("payload");
 
-var line, flow, focus;
+var app = {local: {}};
 
 function clear() {
     $timelines.innerHTML = "";
 }
 
 function draw() {
-    line = new MultiLine(
+    app.local.line = new MultiLine(
         streams.items().map(function(x) { return new StreamLine(x); }).concat(
             videos.items().map(function(x) { return new SourceLine(x); })),
         PREFS.overview.row_h);
-    flow = new Flow(line, document.body.clientWidth);
+    app.local.flow = new Flow(app.local.line, document.body.clientWidth);
 
-    flow.onclick = function(t) {
-        focus.setTime(t);
+    app.local.flow.onclick = function(t) {
+        app.local.focus.setTime(t);
     }
 
-    $timelines.appendChild(flow.$el);
-    flow.setVisible(0,document.body.clientHeight);
+    $timelines.appendChild(app.local.flow.$el);
+    app.local.flow.setVisible(0,document.body.clientHeight);
 }
 function reset() {
     clear();
     draw();
 
-    if(focus) {
-        focus.flow = flow;
-        focus.line = line;
+    if(app.local.focus) {
+        // Eww!
+        app.local.focus.flow = app.local.flow;
+        app.local.focus.box.flow = app.local.flow; 
+        app.local.focus.sel.flow = app.local.flow; 
+        app.local.focus.line = app.local.line;
     }
 }
 
 ego.onload = function() {
     reset();
 
-    focus = new VideoFocus(flow);
-    focus.box.$el.style.left = -1000;
-    focus.sel.$el.style.left = -1000;
-    $payload.appendChild(focus.$el);
+    app.local.focus = new VideoFocus(app.local.flow);
+    app.local.focus.box.$el.style.left = -1000;
+    app.local.focus.sel.$el.style.left = -1000;
+    $payload.appendChild(app.local.focus.$el);
 
     // Yuck!
     videos.bind("change", reset);
