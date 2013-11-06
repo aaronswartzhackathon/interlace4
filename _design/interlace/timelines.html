@@ -11,6 +11,7 @@ body {
 </head>
 <body>
 <h1>timelines</h1>
+<a href="upload.html">upload</a>
 <script>
 
 var PREFS = {
@@ -32,87 +33,99 @@ var PREFS = {
 var ego = new SuperEgo();
 ego.track();
 
+var loader = new ImageLoader();
+
 var videos = new Subcollection(ego, function(x) {
     return x.type == "video";
 });
 
 function v_duration(v) {
-    // XXX: undershooting by one cluster, need to store duration in doc
-    return v.index[v.index.length-1];
+    // XXX: index method undershoots by one cluster -- need to store duration in doc
+    return v.duration || v.index[v.index.length-1];
 };
-function v_overview(v) {
-    // XXX: there could be multiple overviews...
-    return "db/" + v._id + "/overview-000000.jpg";
+function zeropad(number, length)
+{
+    var pad = "";
+    for (var i=0; i<length-String(number).length; i++) {
+	    pad += "0";
+    }
+    pad += String(number);
+    return pad;
+}
+function v_overview(v, idx) {
+    return "db/" + v._id + "/overview-" + zeropad(idx, 6) + ".jpg";
 };
 
-var InterLine = function(videos) {
-    this.videos = videos;
-    this.loader = new ImageLoader();
+var OverviewLine = function(src, idx) {
     Line.call(this, PREFS.overview.row_h);
-}
-InterLine.prototype = new Line;
-InterLine.prototype.time2px = function(t) {
+    this.src = src;
+    this.idx = idx;
+};
+OverviewLine.prototype = new Line;
+OverviewLine.prototype.time2px = function(t) {
     return t * (PREFS.overview.row_w / PREFS.overview.row_t);
 };
-InterLine.prototype.px2time = function(x) {
+OverviewLine.prototype.px2time = function(x) {
     return x / (PREFS.overview.row_w / PREFS.overview.row_t);
 };
-InterLine.prototype.getWidth = function() {
-    return this.time2px(this.videos.reduce(function(x,y) { return x + v_duration(y); }, 0));
-};
-InterLine.prototype.time2srctime = function(t) {
-    var cur_t = 0;
-    for(var i=0; i<this.videos.length; i++){
-        var src = this.videos[i];
-        if(cur_t + v_duration(src) > t) {
-            return {src: src,
-                    t: t - cur_t};
-        }
-        cur_t += v_duration(src);
-    }
-};
-InterLine.prototype.render = function($can, px_start) {
-    var ctx = $can.getContext("2d");
-    var w = $can.width;
+OverviewLine.prototype.getDuration = function() {
+    var max_mosaic_dur = PREFS.overview.row_t * PREFS.overview.nrows;
+    return Math.min(max_mosaic_dur, v_duration(this.src) - this.idx * max_mosaic_dur);
+}
+OverviewLine.prototype.render = function(ctx, args) {
+    var cur_x = args.px_start;
+    while(cur_x < (args.px_start + args.ctx_w)) {
 
-    var cur_x = px_start;
+        // Blit one line of overview at a time.
+        // XXX: This is ill-suited to adding zoom.
 
-    ctx.strokeStyle = "black";
-    while(cur_x < (px_start + w)) {
+        var sx = cur_x % PREFS.overview.row_w;
+        var sy = PREFS.overview.row_h * Math.floor(cur_x / PREFS.overview.row_w);
+        var line_w = Math.min(
+            // Width available within the overview line
+            PREFS.overview.row_w - sx,
+            // Width available in the canvas context
+            args.ctx_w - (cur_x - args.px_start));
 
-        var srctime = this.time2srctime(this.px2time(cur_x));
-        this.loader.loadImage(v_overview(srctime.src), function($img) {
-
-            // Figure out which rectangle from the mosaic to blit
-            // XXX: assumes timescale of mosaics
-            var mos_offset = this.line.time2px(this.t);
-            var mos_idx = Math.round(mos_offset / PREFS.overview.img_w);
-            var mos_y = PREFS.overview.row_h * Math.floor(mos_idx / (PREFS.overview.row_w / PREFS.overview.img_w));
-            var mos_x = PREFS.overview.img_w * (mos_idx % (PREFS.overview.row_w / PREFS.overview.img_w));
+        loader.loadImage(v_overview(this.src, this.idx), function($img) {
 
             ctx.drawImage($img,
                           // sx, sy, sw, sh
-                          mos_x, mos_y, PREFS.overview.img_w, PREFS.overview.row_h,
+                          this.sx, this.sy, this.line_w, PREFS.overview.row_h,
                           // dx, dy, dw, dh
-                          this.x, 0, PREFS.overview.img_w, PREFS.overview.row_h);
+                          args.ctx_start_x + this.cur_x - args.px_start, 0, this.line_w, PREFS.overview.row_h);
 
+            // Line.prototype.debug_render.call(this.line, ctx, args);
 
-        }.bind({line:this, t: srctime.t, x: cur_x - px_start}));
-        
-        ctx.strokeRect(cur_x-px_start,0,PREFS.overview.img_w,$can.height);
+        }.bind({ctx: ctx, cur_x: cur_x, sx: sx, sy: sy, line_w: line_w, line: this}));
 
-        // this.loader.loadImage(v_overview(
+        cur_x += line_w;
+    }
+};
 
-        cur_x += PREFS.overview.img_w;
+var SourceLine = function(src) {
+    // Make a timeline of an entire source.
+    // This wraps as many OverviewLines as necessary.
+    var dur = v_duration(src);
+    var overviews = [];
+    var idx = 0;
+    while(idx * PREFS.overview.row_t * PREFS.overview.nrows < dur) {
+        overviews.push(new OverviewLine(src, idx));
+        idx += 1;
     }
 
-    var start_t = this.px2time(px_start);
-
+    MultiLine.call(this, overviews);
 };
+SourceLine.prototype = new MultiLine;
+// SourceLine.prototype.render = function($can, px_start, args) {
+//     console.log("SL RENDER", $can.width, px_start, args, this.lines[0].src["uploaded-file-name"]);
+//     MultiLine.prototype.render.call(this, $can, px_start, args);
+// }
+
 
 var line, flow;
 ego.onload = function() {
-    line = new InterLine(videos.items());
+    line = new MultiLine(videos.items().map(function(x) { return new SourceLine(x); }));
     flow = new Flow(line, document.body.clientWidth);
 
     document.body.appendChild(flow.$el);
