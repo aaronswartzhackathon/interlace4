@@ -56,6 +56,11 @@ class CouchDBStreamProducer(object):
         else:
             self.consumer.write(data)
             self._written += len(data)
+        if self._written >= self.length:
+            # enough!
+            self.consumer.unregisterProducer()
+            self.consumer.finish()
+
 
     def stopProducing(self):
         pass
@@ -164,7 +169,7 @@ class CouchWebMResource(streamrip.webm.DynamicWebMResource):
         if cluster_idx is None:
             cluster_idx, clusters_len = self.webm.find_cluster(duration)
         else:
-            clusters_len = self.webm.clusters[cluster_idx][2]
+            clusters_len = self.webm.clusters[max(len(self.webm.clusters)-1, cluster_idx)][2]
 
         header = self.webm.get_header(cluster_idx)
 

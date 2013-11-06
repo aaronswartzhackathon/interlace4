@@ -60,10 +60,13 @@ var dbname = window.location.pathname.split("/")[1];
 
 function v_duration(v) {
     // XXX: index method undershoots by one cluster -- need to store duration in doc
-    return v.duration || v.index[v.index.length-1];
+    return v.duration || (v.index ? v.index[v.index.length-1] : 0)
 };
 function v_stream(v) {
-    return "stream/" + dbname + "/" + v._id + "?cluster_idx=" + (v.index.length-2);
+    // return "stream/" + dbname + "/" + v._id + "?cluster_idx=" + (v.index.length-2);
+    // XXX: couch proxy seems to break under load?!
+    // assume the twisted server is running one port up
+    return "http://" + window.location.hostname + ":" + (Number(window.location.port) + 1) + "/" + dbname + "/" + v._id + "?cluster_idx=" + (v.index.length-2);
 }
 function v_seek($v, t, cb) {
     var _seek = function() {
@@ -166,7 +169,7 @@ var SourceLine = function(src) {
         idx += 1;
     }
 
-    MultiLine.call(this, overviews);
+    MultiLine.call(this, overviews, PREFS.overview.row_h);
 };
 SourceLine.prototype = new MultiLine;
 
@@ -188,8 +191,25 @@ StreamLine.prototype.getDuration = function() {
 StreamLine.prototype.render = function(ctx, args) {
     // Maybe we should do something more interesting here; for now,
     // just fill solid.
-    ctx.fillStyle = "rgb(0,255,0)";
-    ctx.fillRect(args.ctx_start_x, 0, args.ctx_w, args.ctx_h);
+
+    var ctx_start_x = args.ctx_start_x;
+    var ctx_w = args.ctx_w;
+    var active_cutoff_x = this.time2px(this.src.__active_duration || v_duration(this.src));
+
+    if(ctx_start_x + ctx_w >= active_cutoff_x) {
+        var active_w = active_cutoff_x - ctx_start_x;
+        ctx.fillStyle = "rgb(0,255,0)";
+        ctx.fillRect(ctx_start_x, 0, active_w, args.ctx_h);
+        ctx_start_x += active_w;
+        ctx_w -= active_w;
+    }
+    if(ctx_w > 0) {
+        ctx.fillStyle = "green";
+        ctx.fillRect(ctx_start_x, 0, ctx_w, args.ctx_h);
+    }
+
+    ctx.fillStyle = "black";
+    ctx.fillText(this.src["uploaded-file-name"], args.ctx_start_x, 20);
 };
 
 var VideoFocus = function(flow) {
@@ -217,11 +237,10 @@ VideoFocus.prototype.setTime = function(t, soft) {
         }
         this._srcstart = t - time;
 
-        console.log("src", src, "time", time);
-
-        if(this._src !== src) {
+        if(this._src !== src || (src.__active_duration && t > src.__active_duration)) {
             this._src = src;
             this.$video.src = v_stream(src);
+            src.__active_duration = src.index[src.index.length-1];
         }
 
         v_seek(this.$video, time, function() {
@@ -256,7 +275,8 @@ function clear() {
 function draw() {
     line = new MultiLine(
         streams.items().map(function(x) { return new StreamLine(x); }).concat(
-            videos.items().map(function(x) { return new SourceLine(x); })));
+            videos.items().map(function(x) { return new SourceLine(x); })),
+        PREFS.overview.row_h);
     flow = new Flow(line, document.body.clientWidth);
 
     flow.onclick = function(t) {
@@ -272,6 +292,7 @@ function reset() {
 
     if(focus) {
         focus.flow = flow;
+        focus.line = line;
     }
 }
 

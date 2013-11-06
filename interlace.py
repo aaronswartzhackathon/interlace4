@@ -37,6 +37,8 @@ class InterLace(psychotherapist.CouchTherapy):
         self.streams = streams
         psychotherapist.CouchTherapy.__init__(self)
 
+        self.svc_uri = self.server_uri.replace(str(PORT), str(SVC_PORT))
+
     def doc_updated_type_uploaded_video(self, db, doc):
         if "upload" in doc.get("_attachments", {}):
             psychotherapist.log("upload processing started!")

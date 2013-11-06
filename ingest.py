@@ -150,8 +150,8 @@ def encode_from_inspec(interlace, inspec, db, doc):
 
     # Figure out URL of DynamicWebM to use for chewing frames
     doc = db[doc["_id"]]
-    url = urlparse.urljoin(interlace.server_uri, "_stream/%s/%s?cluster_idx=%d" % (db.name, doc["_id"], len(doc["index"])-2))
-    log("!!!CHEW!!!", url)
+    # url = urlparse.urljoin(interlace.server_uri, "_stream/%s/%s?cluster_idx=%d" % (db.name, doc["_id"], len(doc["index"])-2))
+    url = urlparse.urljoin(interlace.svc_uri, "%s/%s?cluster_idx=%d" % (db.name, doc["_id"], len(doc["index"])-2))
     chew.save_chewing(url, dirname)
 
     for filename in os.listdir(dirname):
