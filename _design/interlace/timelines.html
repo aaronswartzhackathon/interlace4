@@ -279,6 +279,8 @@ ego.onload = function() {
     reset();
 
     focus = new VideoFocus(flow);
+    focus.box.$el.style.left = -1000;
+    focus.sel.$el.style.left = -1000;
     $payload.appendChild(focus.$el);
 
     // Yuck!
