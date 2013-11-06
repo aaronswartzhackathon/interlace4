@@ -31,7 +31,7 @@ def encode(input_spec, chunksize=2**16):
         "-f", "webm",
         "-c:v", "libvpx",
         "-b:v", "250K",
-        "-crf", "10",
+        # "-crf", "10",
         "-c:a", "libvorbis",
         "-"
     ]
@@ -138,9 +138,8 @@ def stream_to_couch(chunkgen, db, doc):
     # _really_put_attachment(db, doc, acc, filename="320p.webm", content_type="video/webm")
     # _really_set_field(db, doc, "type", "video")
 
-def encode_from_upload(interlace, db, doc, upload_name="upload"):
-    url = urlparse.urljoin(interlace.server_uri, "%s/%s/%s" % (db.name, doc["_id"], upload_name))
-    chunkgen = encode(["-i", url])
+def encode_from_inspec(interlace, inspec, db, doc):
+    chunkgen = encode(inspec)
     _p = chunkgen.next()        # process handle
     stream_to_couch(chunkgen, db, doc)
 
@@ -149,6 +148,10 @@ def encode_from_upload(interlace, db, doc, upload_name="upload"):
     import tempfile
     dirname = tempfile.mkdtemp() + "/"
 
+    # Figure out URL of DynamicWebM to use for chewing frames
+    doc = db[doc["_id"]]
+    url = urlparse.urljoin(interlace.server_uri, "_stream/%s/%s?cluster_idx=%d" % (db.name, doc["_id"], len(doc["index"])-2))
+    log("!!!CHEW!!!", url)
     chew.save_chewing(url, dirname)
 
     for filename in os.listdir(dirname):
@@ -157,3 +160,7 @@ def encode_from_upload(interlace, db, doc, upload_name="upload"):
 
     # _really_set_field(db, doc, "status", "complete")
     _really_set_field(db, doc, "type", "video")
+
+def encode_from_upload(interlace, db, doc, upload_name="upload"):
+    url = urlparse.urljoin(interlace.server_uri, "%s/%s/%s" % (db.name, doc["_id"], upload_name))
+    return encode_from_inspec(interlace, ["-i", url], db, doc)
