@@ -7,12 +7,33 @@
 body {
   margin: 0;
 }
+#payload {
+  position: relative;
+}
+.focus * {
+  transition-property: left, top;
+  transition-duration: 0.3s;
+  z-index: 10;
+}
+.focus .box {
+  min-width: 320px;
+  height: 320px;
+  border: 1px solid magenta;
+  z-index: 20;
+}
+.focus .selection {
+  width: 2px;
+  height: 72px;
+  background-color: magenta;
+}
 </style>
 </head>
 <body>
 <h1>timelines</h1>
 <a href="upload.html">upload</a>
+<div id="payload"></div>
 <div id="timelines"></div>
+</div>
 <script>
 
 var PREFS = {
@@ -31,10 +52,49 @@ var PREFS = {
         "nrows": 10
         }
     }
+
+// figure out dbname from URL
+// XXX: somehow this should be otherwise known...
+// XXX: this won't work for subdomains
+var dbname = window.location.pathname.split("/")[1];
+
 function v_duration(v) {
     // XXX: index method undershoots by one cluster -- need to store duration in doc
     return v.duration || v.index[v.index.length-1];
 };
+function v_stream(v) {
+    return "stream/" + dbname + "/" + v._id + "?cluster_idx=" + (v.index.length-2);
+}
+function v_seek($v, t, cb) {
+    var _seek = function() {
+        $v.removeEventListener("loadedmetadata", _seek, false);
+        $v.currentTime = t;
+        if($v.seeking || $v.readyState !== 4) {
+            var _callback = function() {
+                $v.removeEventListener("seeked", _callback, false);
+
+                if(Math.abs($v.currentTime - t) > 0.01 || $v.seeking || $v.readyState !== 4) {
+                    // Chrome seems to fire this event a bit early --delay
+                    // XXX: is this still needed?
+                    window.setTimeout(_callback, 10);
+                }
+                else {
+                    if(cb) { cb(); }
+                }
+            }
+            $v.addEventListener('seeked', _callback, false); 
+        }
+        else {
+            if(cb) { cb(); }
+        }
+    };
+    if($v.readyState === 0)
+        $v.addEventListener("loadedmetadata", _seek, false);
+    else
+        _seek();
+};
+
+
 function zeropad(number, length)
 {
     var pad = "";
@@ -115,7 +175,7 @@ var StreamLine = function(src) {
     Line.call(this, PREFS.overview.row_h);
 }
 StreamLine.prototype = new Line;
-// XXX: duplication with OverviewLine
+// XXX: code duplication with OverviewLine
 StreamLine.prototype.time2px = function(t) {
     return t * (PREFS.overview.row_w / PREFS.overview.row_t);
 };
@@ -132,6 +192,46 @@ StreamLine.prototype.render = function(ctx, args) {
     ctx.fillRect(args.ctx_start_x, 0, args.ctx_w, args.ctx_h);
 };
 
+var VideoFocus = function(flow) {
+    Focus.call(this, flow);
+    this.$video = document.createElement("video");
+    this.$video.setAttribute("height", 320);
+
+    this.box.$el.appendChild(this.$video);
+
+    this._src = null;           // current source
+    this._srcstart = 0;         // where source starts in absolute time
+
+    this.$video.ontimeupdate = function() {
+        this.setTime(this.$video.currentTime + this._srcstart, true);
+    }.bind(this);
+}
+VideoFocus.prototype = new Focus;
+VideoFocus.prototype.setTime = function(t, soft) {
+    if(!soft) {
+        var srctime = this.line.getLeafAt(t);
+        var src = srctime[0].src;
+        var time = srctime[1];
+        if(src instanceof OverviewLine) {
+            time += src.idx * PREFS.overview.row_t * PREFS.overview.nrows;
+        }
+        this._srcstart = t - time;
+
+        console.log("src", src, "time", time);
+
+        if(this._src !== src) {
+            this._src = src;
+            this.$video.src = v_stream(src);
+        }
+
+        v_seek(this.$video, time, function() {
+            this.$video.play();
+        }.bind(this));
+    }
+    Focus.prototype.setTime.call(this, t);
+}
+
+
 var ego = new SuperEgo();
 ego.track();
 
@@ -145,8 +245,9 @@ var streams = new Subcollection(ego, function(x) {
 });
 
 var $timelines = document.getElementById("timelines");
+var $payload = document.getElementById("payload");
 
-var line, flow;
+var line, flow, focus;
 
 function clear() {
     $timelines.innerHTML = "";
@@ -158,16 +259,27 @@ function draw() {
             videos.items().map(function(x) { return new SourceLine(x); })));
     flow = new Flow(line, document.body.clientWidth);
 
+    flow.onclick = function(t) {
+        focus.setTime(t);
+    }
+
     $timelines.appendChild(flow.$el);
     flow.setVisible(0,document.body.clientHeight);
 }
 function reset() {
     clear();
     draw();
+
+    if(focus) {
+        focus.flow = flow;
+    }
 }
 
 ego.onload = function() {
     reset();
+
+    focus = new VideoFocus(flow);
+    $payload.appendChild(focus.$el);
 
     // Yuck!
     videos.bind("change", reset);
