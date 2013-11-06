@@ -12,6 +12,7 @@ body {
 <body>
 <h1>timelines</h1>
 <a href="upload.html">upload</a>
+<div id="timelines"></div>
 <script>
 
 var PREFS = {
@@ -30,15 +31,6 @@ var PREFS = {
         "nrows": 10
         }
     }
-var ego = new SuperEgo();
-ego.track();
-
-var loader = new ImageLoader();
-
-var videos = new Subcollection(ego, function(x) {
-    return x.type == "video";
-});
-
 function v_duration(v) {
     // XXX: index method undershoots by one cluster -- need to store duration in doc
     return v.duration || v.index[v.index.length-1];
@@ -117,20 +109,74 @@ var SourceLine = function(src) {
     MultiLine.call(this, overviews);
 };
 SourceLine.prototype = new MultiLine;
-// SourceLine.prototype.render = function($can, px_start, args) {
-//     console.log("SL RENDER", $can.width, px_start, args, this.lines[0].src["uploaded-file-name"]);
-//     MultiLine.prototype.render.call(this, $can, px_start, args);
-// }
 
+var StreamLine = function(src) {
+    this.src = src;
+    Line.call(this, PREFS.overview.row_h);
+}
+StreamLine.prototype = new Line;
+// XXX: duplication with OverviewLine
+StreamLine.prototype.time2px = function(t) {
+    return t * (PREFS.overview.row_w / PREFS.overview.row_t);
+};
+StreamLine.prototype.px2time = function(x) {
+    return x / (PREFS.overview.row_w / PREFS.overview.row_t);
+};
+StreamLine.prototype.getDuration = function() {
+    return v_duration(this.src);
+};
+StreamLine.prototype.render = function(ctx, args) {
+    // Maybe we should do something more interesting here; for now,
+    // just fill solid.
+    ctx.fillStyle = "rgb(0,255,0)";
+    ctx.fillRect(args.ctx_start_x, 0, args.ctx_w, args.ctx_h);
+};
+
+var ego = new SuperEgo();
+ego.track();
+
+var loader = new ImageLoader();
+
+var videos = new Subcollection(ego, function(x) {
+    return x.type == "video";
+});
+var streams = new Subcollection(ego, function(x) {
+    return x.type == "processing-video";
+});
+
+var $timelines = document.getElementById("timelines");
 
 var line, flow;
-ego.onload = function() {
-    line = new MultiLine(videos.items().map(function(x) { return new SourceLine(x); }));
+
+function clear() {
+    $timelines.innerHTML = "";
+}
+
+function draw() {
+    line = new MultiLine(
+        streams.items().map(function(x) { return new StreamLine(x); }).concat(
+            videos.items().map(function(x) { return new SourceLine(x); })));
     flow = new Flow(line, document.body.clientWidth);
 
-    document.body.appendChild(flow.$el);
-
+    $timelines.appendChild(flow.$el);
     flow.setVisible(0,document.body.clientHeight);
+}
+function reset() {
+    clear();
+    draw();
+}
+
+ego.onload = function() {
+    reset();
+
+    // Yuck!
+    videos.bind("change", reset);
+    videos.bind("create", reset);
+    videos.bind("delete", reset);
+
+    streams.bind("change", reset);
+    streams.bind("create", reset);
+    streams.bind("delete", reset);
 }
 
 </script>
