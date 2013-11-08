@@ -1,0 +1,63 @@
+<html>
+  <head>
+<title>INTERLACE</title>
+<script src="freud.js"></script>
+<style>
+#start {
+  font-size: 200%;
+}
+</style>
+</head>
+<body>
+<h1>INTERLACE</h1>
+<p>
+You are an InterLace node. Once you connect to a relay, the videos you add will be transcoded and streamed to the relay.
+<div id="relay"></div>
+<p>
+Once the relay is configured, click below to see the video uploaded:
+<center><button id="clickme">Start</button></center>
+<script>
+var ego = new SuperEgo("db");
+ego.track();
+
+function entry(label, onreturn, value) {
+    var $div = document.createElement("div");
+    var $lab = document.createElement("span");
+    $lab.className = "label";
+    $lab.innerHTML = label;
+    $div.appendChild($lab);
+    var $input = document.createElement("input");
+    $input.value = value || "";
+
+    $input.onkeydown = function(ev) {
+	    if(ev.keyCode == 13) {	// Enter
+	        ev.preventDefault();
+	        onreturn(this.value);
+	    }
+    }
+    $div.appendChild($input);
+    return $div;
+}
+
+var $relay = document.getElementById("relay")
+var relay = ego.get("relay") || new SuperModel(ego, {"_id": "relay", "type": "relay-info", "url": ""});
+var re_coll = new Subcollection(ego, function(x) { return x._id == "relay"; });
+var re_view = new SuperMarket(re_coll, function(obj, $div) {
+    $div.innerHTML = "<h2>Enter Relay Information</h2>"
+    var $input = entry("relay url", function(url) {
+        obj.set("url", url);
+        obj.save();
+    }, obj.url || "");
+    $div.appendChild($input);
+});
+
+$relay.appendChild(re_view.$el);
+
+$button = document.getElementById("clickme");
+$button.onclick = function() {
+    window.location = window.location.protocol + "//" + window.location.hostname + ":" + window.location.port + "/localvideos/_design/interlace/_rewrite/";
+}
+
+</script>
+</body>
+</html>

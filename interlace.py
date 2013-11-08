@@ -2,7 +2,10 @@ from freud import psychotherapist
 import couchpotato
 import ingest
 
+import json
 import os
+import urlparse
+import requests
 import sys
 
 from twisted.web.server import Site
@@ -33,11 +36,62 @@ def interlace_init(creds):
                               '{couch_httpd_proxy, handle_proxy_req, <<"http://localhost:%d">>}' % (SVC_PORT))
 
 class InterLace(psychotherapist.CouchTherapy):
-    def __init__(self, streams):
+    def __init__(self, streams, *a, **kw):
         self.streams = streams
-        psychotherapist.CouchTherapy.__init__(self)
+        psychotherapist.CouchTherapy.__init__(self, *a, **kw)
 
         self.svc_uri = self.server_uri.replace(str(PORT), str(SVC_PORT))
+
+        # A node doesn't need multiple databases -- make sure this one exists.
+        self.single_name = "localvideos"
+        if not self.single_name in self.server:
+            self.server.create(self.single_name)
+            # force initialization
+            self.db_created(self.single_name)
+
+    def db_psychotherapist_doc_updated_type_relay_info(self, db, doc):
+        # start replication
+        if not "url" in doc:
+            log("DPDUTRI", "no url in doc")
+            return
+
+        # rep_db = self.server["_replicator"]
+        #
+        # XXX: python-couchdb doesn't consider the _replicator
+        # database to be valid. Ugh!
+        # TODO: bug/patch/&c
+        # 
+        # /usr/lib/pymodules/python2.7/couchdb/client.pyc in validate_dbname(name)
+        #    1073         return name
+        #    1074     if not VALID_DB_NAME.match(name):
+        # -> 1075         raise ValueError('Invalid database name')
+        #    1076     return name
+        # ValueError: Invalid database name
+
+        # parsed = urlparse.urlparse(self.server_uri)
+        # s_creds = (parsed.username, parsed.password)
+
+        # Un-set old replication
+        url = urlparse.urljoin(self.server_uri, "_replicator/master")
+        res = requests.request("GET", url)
+        if res.status_code > 400:
+            rdoc = {"_id": "master"}
+        else:
+            rdoc = json.loads(res.text)
+
+        d_url = url
+        if "_rev" in rdoc:
+            d_url += "?rev=%s" % (rdoc["_rev"])
+        res = requests.request("DELETE", d_url)
+
+        # Start replication
+        ndoc = {
+            "_id": "master",
+            "source": self.single_name,
+            "target": doc["url"],
+            # "create_target": True, # XXX: for testing only
+            "continuous": True}
+        res = requests.request("PUT", url, data=json.dumps(ndoc))
 
     def doc_updated_type_uploaded_video(self, db, doc):
         if "upload" in doc.get("_attachments", {}):
@@ -57,10 +111,13 @@ class InterLace(psychotherapist.CouchTherapy):
                 reactor.callFromThread(self.streams.dbs[db.name].update_stream, doc)
 
     def db_updated(self, db_name):
+        if db_name.startswith("_"):
+            return
+
         psychotherapist.CouchTherapy.db_updated(self, db_name)
 
         if db_name not in self.streams.dbs:
-            if db_name in self.server:
+            if db_name in self.server and db_name != self.doctors_log:
                 reactor.callFromThread(self.streams.add_database, self.server[db_name])
             else:
                 psychotherapist.log("EEK! -- db not in server?", db_name)
@@ -155,4 +212,18 @@ if __name__=='__main__':
         # Subprocess CouchDB, but don't make a GUI
         p = psychotherapist.init(basedir, exepath, name=APPNAME, port=PORT)
         print "%s is running on port %d" % (APPNAME, PORT)
+        p.wait()
+
+    elif sys.argv[1] == "console":
+        p = psychotherapist.init(basedir, exepath, name=APPNAME, port=PORT)
+        creds = psychotherapist.get_psychotherapist_creds(os.path.join(os.getenv("HOME"), ".freud", APPNAME, "conf"))
+
+        root = AllOfTheStreams()
+        interlace = InterLace(root, server_uri="http://%slocalhost:%d" % (creds, PORT), basedir=basedir)
+
+        import IPython
+        IPython.embed()
+
+        print "KILL"
+        p.kill()
         p.wait()
