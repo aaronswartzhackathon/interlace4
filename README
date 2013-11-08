@@ -13,7 +13,7 @@ There are various other requirements:
   sudo apt-get install python-twisted-web python-requests python-couchdb python-numpy python-qt4
 
 
- git clone git://git.numm.org/interlace4
+ git clone https://github.com/aaronswartzhackathon/interlace4.git
  cd interlace4
 
 If you built your own couch, create a symlink to the build directory:
