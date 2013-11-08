@@ -1,41 +1,53 @@
 Interlace Teleputer Systems For Home, Office, Or Mobile
 
-== Installation
+== Installation on Debian/Ubuntu
 
 Requires CouchDB 1.4 or greater.
 
-http://couchdb.apache.org/ has binaries for Mac and Windows.
-
-For Linux, if your package manager doesn't have a sufficiently recent version of Couch,
-https://github.com/iriscouch/build-couchdb can help you build one from source.
-
+If your package manager doesn't have a sufficiently recent version of
+Couch, https://github.com/iriscouch/build-couchdb can help you build
+one from source.
 
 
-git clone git://git.numm.org/interlace4
-cd interlace4
+ git clone git://git.numm.org/interlace4
+ cd interlace4
 
-On Mac, place "Apache CouchDB.app" in the interlace4 root directory;
-on other platforms, create a symbolic link named "couchdb" to the "build" directory:
+If you built your own couch, create a symlink to the build directory:
 
-ln -s /PATH/TO/build-couchdb/build/ couchdb
-(There may be permissions issues on a system-wide installation)
+ ln -s /PATH/TO/build-couchdb/build/ couchdb
+
+
+Otherwise, copy over your system configuration so we can make couch
+instances as a user:
+
+ mkdir etc
+ sudo cp -r /etc/couchdb etc/
+ sudo chown -R `whoami` etc/
+
+
 
 Likewise place ffmpeg (or a symbolic link thereto) in the interlace4 root;
 good x-platform binaries can be found at:
 http://www.firefogg.org/nightly/
 
+ wget http://www.firefogg.org/nightly/ffmpeg.linux
+ mv ffmpeg.linux ffmpeg
+ chmod +x ffmpeg
 
 
-git submodule init
-git submodule update
+Update git
 
+ git submodule init
+ git submodule update
 
 
 == Running InterLace
 
 Once InterLace is installed, simply run:
 
-python interlace.py
+ python interlace.py
+
+Once you've gotten this far, you need credentials for the server.
 
 
 
