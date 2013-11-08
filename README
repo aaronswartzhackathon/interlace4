@@ -8,6 +8,10 @@ If your package manager doesn't have a sufficiently recent version of
 Couch, https://github.com/iriscouch/build-couchdb can help you build
 one from source.
 
+There are various other requirements:
+
+  sudo apt-get install python-twisted-web python-requests python-couchdb python-numpy python-qt4
+
 
  git clone git://git.numm.org/interlace4
  cd interlace4
